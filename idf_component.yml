@@ -1,0 +1,5 @@
+version: "1.0.0"
+description: I2C driver for DS3231 real-time clock
+url: https://github.com/subado/ds3231/tree/master
+dependencies:
+  idf: ">=5.4"
