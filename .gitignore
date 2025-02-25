@@ -60,3 +60,6 @@ managed_components
 
 doxygen_output/**
 __pycache__
+
+# direnv
+.envrc
