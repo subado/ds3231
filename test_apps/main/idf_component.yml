@@ -1,0 +1,6 @@
+## IDF Component Manager Manifest File
+dependencies:
+  idf: ">=5.4"
+  ds3231:
+    version: "*"
+    override_path: "../../"
