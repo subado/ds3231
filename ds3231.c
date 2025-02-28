@@ -13,14 +13,6 @@
 /* DS3231 register lenths */
 #define DS3231_TIMEINFO_DATA_LEN 7
 
-/* DS3231 register bit masks */
-#define DS3231_HOURS_MASK	   0x1f
-#define DS3231_HOURS_PM_FLAG_MASK  0x20
-#define DS3231_HOURS_12H_MODE_MASK 0x40
-
-#define DS3231_MONTH_MASK   0x1f
-#define DS3231_CENTURY_MASK 0x80
-
 #define DS3231_WRITE_BUFF_SIZE (DS3231_TIMEINFO_DATA_LEN + 1)
 
 /*******************************************************************************
@@ -109,29 +101,45 @@ esp_err_t ds3231_get_raw_timeinfo(ds3231_handle_t clock,
 	ret = ds3231_read(clock, DS3231_TIMEINFO_DATA, data, sizeof(data));
 	if (ret == ESP_OK) {
 		uint8_t i = 0;
-		raw_timeinfo->seconds = bcd2dec(data[i++]);
+		memcpy(&raw_timeinfo->seconds, &data[i++],
+		       sizeof(raw_timeinfo->seconds));
+		memcpy(&raw_timeinfo->minutes, &data[i++],
+		       sizeof(raw_timeinfo->minutes));
+		memcpy(&raw_timeinfo->hours, &data[i++],
+		       sizeof(raw_timeinfo->hours));
+		memcpy(&raw_timeinfo->day, &data[i++],
+		       sizeof(raw_timeinfo->day));
+		memcpy(&raw_timeinfo->date, &data[i++],
+		       sizeof(raw_timeinfo->date));
+		memcpy(&raw_timeinfo->month, &data[i++],
+		       sizeof(raw_timeinfo->month));
+		memcpy(&raw_timeinfo->year, &data[i++],
+		       sizeof(raw_timeinfo->year));
+	}
 
-		raw_timeinfo->minutes = bcd2dec(data[i++]);
+	return ret;
+}
 
-		raw_timeinfo->hours = bcd2dec(data[i] & DS3231_HOURS_MASK);
-		raw_timeinfo->hours_12h_mode =
-			bcd2dec(data[i] & DS3231_HOURS_12H_MODE_MASK);
-		raw_timeinfo->hours_pm_flag =
-			bcd2dec(data[i++] & DS3231_HOURS_PM_FLAG_MASK);
-		if (!raw_timeinfo->hours_12h_mode &&
-		    raw_timeinfo->hours_pm_flag) {
-			raw_timeinfo->hours += 20;
-		}
+esp_err_t ds3231_get_timeinfo(ds3231_handle_t clock, struct tm *timeinfo)
+{
+	esp_err_t ret = ESP_FAIL;
 
-		raw_timeinfo->day = bcd2dec(data[i++]);
+	assert(timeinfo != NULL);
 
-		raw_timeinfo->date = bcd2dec(data[i++]);
+	memset(timeinfo, 0, sizeof(struct tm));
 
-		raw_timeinfo->month = bcd2dec(data[i] & DS3231_MONTH_MASK);
-		raw_timeinfo->year_century_flag =
-			bcd2dec(data[i++] & DS3231_CENTURY_MASK);
+	ds3231_raw_timeinfo_t raw_timeinfo;
+	ret = ds3231_get_raw_timeinfo(clock, &raw_timeinfo);
 
-		raw_timeinfo->year = bcd2dec(data[i++]);
+	if (ret == ESP_OK) {
+		DS3231_BCD2DEC(raw_timeinfo.seconds, timeinfo->tm_sec);
+		DS3231_BCD2DEC(raw_timeinfo.minutes, timeinfo->tm_min);
+		DS3231_BCD2DEC(raw_timeinfo.hours, timeinfo->tm_hour);
+		timeinfo->tm_wday = raw_timeinfo.day - 1;
+		DS3231_BCD2DEC(raw_timeinfo.date, timeinfo->tm_mday);
+		DS3231_BCD2DEC(raw_timeinfo.month, timeinfo->tm_mon);
+		--timeinfo->tm_mon;
+		DS3231_BCD2DEC(raw_timeinfo.year, timeinfo->tm_year);
 	}
 
 	return ret;
@@ -167,14 +175,4 @@ static esp_err_t ds3231_read(ds3231_handle_t clock,
 	return i2c_master_transmit_receive(clck->i2c_handle, reg_buff,
 					   sizeof(reg_buff), data_buf, data_len,
 					   -1);
-}
-
-uint8_t bcd2dec(uint8_t x)
-{
-	return (x >> 4) * 10 + (x & 0xf);
-}
-
-uint8_t dec2bcd(uint8_t x)
-{
-	return ((x / 10) << 4) | (x % 10);
 }
